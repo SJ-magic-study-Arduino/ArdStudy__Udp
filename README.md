@@ -12,6 +12,7 @@
 ofxNetwork  
   
 ## Contents ##
+"ファイル/スケッチ例/Ethernet2/UDPSendReceiveString"を参考に、UDPの送受信sampleを作成
 
 ## Device ##
 
