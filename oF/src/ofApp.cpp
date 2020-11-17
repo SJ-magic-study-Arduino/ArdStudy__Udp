@@ -51,18 +51,29 @@ void ofApp::setup_udp(){
 void ofApp::update(){
 	char udpMessage[UDP_BUF_SIZE];
 	udp_Receive.Receive(udpMessage, UDP_BUF_SIZE);
-	string message = udpMessage;
+	string message=udpMessage;
 	
-	if(message != ""){
-		vector<string> messages = ofSplitString(message,"[p]");
+	if(message!=""){
+		string LastMessage = message;
 		
-		if(messages.size() == 3){
-			printf("%s : ", messages[0].c_str());
-			printf("%s ", messages[1].c_str());
-			printf("[%s th message]\n", messages[2].c_str());
+		do{ // 巻き取り
+			udp_Receive.Receive(udpMessage, UDP_BUF_SIZE);
+			message = udpMessage;
+			if(message != "") LastMessage = message;
+			
+		}while(message != "");
+		
+		vector<string> strMessages = ofSplitString(LastMessage, "[p]");
+		
+		if(strMessages.size() == 3){
+			printf("%s : ", strMessages[0].c_str());
+			printf("%s ", strMessages[1].c_str());
+			printf("[%s th message]\n", strMessages[2].c_str());
 			fflush(stdout);
 		}
 	}
+
+
 }
 
 //--------------------------------------------------------------
