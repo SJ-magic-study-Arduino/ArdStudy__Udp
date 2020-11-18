@@ -8,46 +8,38 @@ Ard	: UDPを受信し、"Button[p]KeyId[p]Nth_Message"の形に変形してoFに
 	■イーサーネットシールド２
 		https://ht-deko.com/arduino/shield_ethernet2.html
 		
+	■Ethernet.begin()
+		http://www.musashinodenpa.com/arduino/ref/index.php?f=1&pos=1167
+		
 	■EthernetUDP
 		https://garretlab.web.fc2.com/arduino_reference/libraries/standard_libraries/Ethernet/EthernetUDP/
-
+		
 ■通信可能なIPについて検討した
 	classA(10.0.0.0/8 = 10.0.0.0 - 10.255.255.255, subnet mask = 255.0.0.0)の場合、前8bitがグループアドレス、後 24bitがホストアドレス。
 	
-	グループアドレスが同じなら、Routerを介さずに通信が可能なので、例えば、
-		10.0.0.5 - 10.0.1.10
-	の通信も可能なはずである。
-	実際、
-		mac(10.0.0.5) - mac(10.0.1.10)
-	のUDP通信は、問題なく動作した。
-	
-	But : 
+	classAで通信するには、Arduino側で、subnet mask = 255.0.0.0を明示的に指定する必要がある。
+	ここで、ファイル/ スケッチ例/ Ethernet2/ AdvancedChatServerに
+		Ethernet.begin(mac, ip, gateway, subnet);
+	の例があったが、これは間違い!!!!
+	この間違いに気付かず、
 		mac(10.0.0.5) - Arduino(10.0.1.10)
-	とすると、mac -> Arduinoは、通ったが、逆のmessageが来なかった。
-		mac(10.0.1.5) - Arduino(10.0.1.10)
-	とすると、通った。
-		mac(10.255.123.5) - Arduino(10.255.123.10)
-	なども同様。
+	で通信できなくて、はまってしまった。
 	
-		IPAddress subnet(255, 0, 0, 0);
-	として、
-		Ethernet.begin(MyMacAddress, MyIP, gateway, subnet);
-	というのもtryしてみたが、同じ結果であった。
+	■Ethernet.begin()
+		http://www.musashinodenpa.com/arduino/ref/index.php?f=1&pos=1167
+	にある通り、
+		Ethernet.begin(mac); // DHCPで設定してbegin. 戻り値 == 0の時は、DHCP設定に失敗しているので、明示的に指定してbeginする必要あり。
+		Ethernet.begin(mac, ip);
+		Ethernet.begin(mac, ip, dns);
+		Ethernet.begin(mac, ip, dns, gateway);
+		Ethernet.begin(mac, ip, dns, gateway, subnet);
+	であり、subnetのデフォルトは255.255.255.0 となっている。
 	
-	Arduinoがsendする方向に限り、上24bitがグループアドレスとして固定され、動作している様子。
+	こちらで設定すると、めでたく 
+		mac(10.0.0.5) - Arduino(10.0.1.10)
+	でも通信が通った。もちろん、他のHost AddressもOK.
 	
-	■考察と結論
-		mac 1台に付き、maxで
-			10.x.x.0 - 10.x.x.255
-		例えば、
-			10.0.1.0 - 10.0.1.255
-		の256個しか、Arduinoを接続できないことになる。
-		ちなみに、IPアドレス範囲のうち、先頭(10.0.0.0) = ネットワークアドレス、最後(10.255.255.255) = ブロードキャストアドレスで、これらは、LAN内の各機器に設定できないので注意。
-		
-		Artnetなど使う際は、さらに分け合う形になる。
-		これで足りればOKだが、足りない場合は、
-		macを複数台 準備し、これらをつないだ上で(macは、グループアドレスが同じであれば、OKなので、莫大な台数 つなげることが可能)
-		それぞれのmacにArduinoをぶら下げてNetworkを構築することとなる。
+	これで、好きなだけArdino deviceを接続できるので安心。
 ************************************************************/
 #include <SPI.h>			// needed for Arduino versions later than 0018
 #include <Ethernet2.h>		//
@@ -59,7 +51,8 @@ Ard	: UDPを受信し、"Button[p]KeyId[p]Nth_Message"の形に変形してoFに
 byte MyMacAddress[] = { 0xA8, 0x61, 0x0A, 0xAE, 0x27, 0x26 };
 
 IPAddress MyIP(10, 0, 0, 10);
-IPAddress gateway(10, 0, 0, 1);
+IPAddress dnsServer(10, 0, 0, 1);	// 1st of Host Address. : 実際には、ここに何もいないが : 名前解決を使わないので、temporary
+IPAddress gateway(10, 0, 0, 1);		// 1st of Host Address. : 実際には、ここに何もいないが : グループアドレスを出ないので、temporary
 IPAddress subnet(255, 0, 0, 0);
 unsigned int ReceivePort = 12345;
 
@@ -88,9 +81,26 @@ int SplitString(String src, char separater, String *dst);
 ******************************/
 void setup() {
 	/********************
+	注意!!!
+		ファイル/ スケッチ例/ Ethernet2/ AdvancedChatServerに
+			Ethernet.begin(mac, ip, gateway, subnet);
+		の例があったが、これは間違い!!!!
+		
+		■Ethernet.begin()
+			http://www.musashinodenpa.com/arduino/ref/index.php?f=1&pos=1167
+		にある通り、
+			Ethernet.begin(mac); // DHCPで設定してbegin. 戻り値 == 0の時は、DHCP設定に失敗しているので、明示的に指定してbeginする必要あり。
+			Ethernet.begin(mac, ip);
+			Ethernet.begin(mac, ip, dns);
+			Ethernet.begin(mac, ip, dns, gateway);
+			Ethernet.begin(mac, ip, dns, gateway, subnet);
+		であり、subnetのデフォルトは255.255.255.0 となっている。
 	********************/
-	Ethernet.begin(MyMacAddress, MyIP);
-	// Ethernet.begin(MyMacAddress, MyIP, gateway, subnet);
+	// Ethernet.begin(MyMacAddress, MyIP);
+	Ethernet.begin(MyMacAddress, MyIP, dnsServer, gateway, subnet);
+	
+	/********************
+	********************/
 	Udp.begin(ReceivePort);
 	
 	/********************
